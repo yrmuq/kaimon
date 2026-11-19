@@ -93,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           body="Development image ghcr.io/yrmuq/kaimon:dev (${GITHUB_SHA}). Not a stable release."
-          id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.draft==true and .tag_name=="dev") | .id' | head -n 1)
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.draft==true and .name=="dev") | .id' | head -n 1)
           if [ -z "$id" ]; then
             gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
               -f tag_name=dev \
