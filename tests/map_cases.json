@@ -1,0 +1,15 @@
+[
+  {"name": "edit before", "span": [2, 6], "cut": 0, "endOld": 1, "insertLen": 0, "expect": [1, 5]},
+  {"name": "edit after", "span": [2, 6], "cut": 7, "endOld": 8, "insertLen": 0, "expect": [2, 6]},
+  {"name": "delete inside", "span": [0, 6], "cut": 2, "endOld": 4, "insertLen": 0, "expect": [0, 4]},
+  {"name": "delete exact span", "span": [2, 5], "cut": 2, "endOld": 5, "insertLen": 0, "expect": null},
+  {"name": "delete covering span", "span": [2, 5], "cut": 1, "endOld": 6, "insertLen": 0, "expect": null},
+  {"name": "insert inside", "span": [0, 4], "cut": 2, "endOld": 2, "insertLen": 1, "expect": [0, 5]},
+  {"name": "insert at span start", "span": [2, 5], "cut": 2, "endOld": 2, "insertLen": 1, "expect": [3, 6]},
+  {"name": "insert at span end", "span": [2, 5], "cut": 5, "endOld": 5, "insertLen": 1, "expect": [2, 5]},
+  {"name": "delete overlap start", "span": [2, 5], "cut": 1, "endOld": 4, "insertLen": 0, "expect": [1, 2]},
+  {"name": "delete overlap end", "span": [2, 5], "cut": 4, "endOld": 6, "insertLen": 0, "expect": [2, 4]},
+  {"name": "replace before overlapping span", "span": [2, 6], "cut": 0, "endOld": 3, "insertLen": 2, "expect": [2, 5]},
+  {"name": "span before touching edit", "span": [0, 2], "cut": 2, "endOld": 4, "insertLen": 0, "expect": [0, 2]},
+  {"name": "span after touching edit", "span": [4, 6], "cut": 2, "endOld": 4, "insertLen": 0, "expect": [2, 4]}
+]

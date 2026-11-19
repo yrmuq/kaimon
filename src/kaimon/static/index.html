@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kaimon</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <div class="cluster left">
+      <button type="button" id="open" data-i18n="3"></button>
+      <input id="file" type="file" accept=".txt,text/plain">
+      <span id="filename"></span>
+    </div>
+    <button type="button" id="next" class="next" data-i18n="2" disabled></button>
+    <div class="cluster right">
+      <button type="button" id="download" data-i18n="4" disabled></button>
+      <label>
+        <span data-i18n="5"></span>
+        <select id="lang">
+          <option value="en"></option>
+          <option value="ru"></option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="6"></span>
+        <select id="theme">
+          <option value="light"></option>
+          <option value="dark"></option>
+          <option value="system"></option>
+        </select>
+      </label>
+    </div>
+  </header>
+  <p id="status" aria-live="polite"></p>
+  <p id="error" role="alert" hidden></p>
+  <div class="panes">
+    <div class="editor" id="left-editor">
+      <pre aria-hidden="true"></pre>
+      <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+    </div>
+    <div class="editor" id="right-editor">
+      <pre aria-hidden="true"></pre>
+      <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+    </div>
+    <div id="drop">
+      <p data-i18n="12"></p>
+      <p class="hint" data-i18n="13"></p>
+    </div>
+  </div>
+  <script type="module" src="/static/app.mjs"></script>
+</body>
+</html>
