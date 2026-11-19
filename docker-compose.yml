@@ -19,9 +19,3 @@ services:
         max-size: "55m"
         max-file: "1"
     restart: unless-stopped
-    networks:
-      - homelab
-
-networks:
-  homelab:
-    external: true
