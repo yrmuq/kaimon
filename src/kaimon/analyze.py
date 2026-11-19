@@ -5,6 +5,7 @@ import numpy as np
 from kaimon.errors import ModelError
 from kaimon.pairs import select_pairs
 from kaimon.segments import candidate_spans
+from kaimon.store import STORE_MIN
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 _model = None
@@ -68,5 +69,5 @@ def find_pairs(text: str, embed=embed_texts, progress=None) -> list[dict]:
 
     vectors = embed(snippets, progress=on_embed)
     report("select", 94)
-    return select_pairs(text, spans, vectors)
+    return select_pairs(text, spans, vectors, semantic_min=STORE_MIN, lexical_min=STORE_MIN)
 

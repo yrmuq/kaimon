@@ -11,6 +11,10 @@ const ERROR_IDS = {
   K008: "107",
   K009: "108",
   K010: "109",
+  K011: "110",
+  K012: "111",
+  K013: "112",
+  K014: "113",
 };
 
 const catalogs = { en: null, ru: null };
@@ -19,6 +23,9 @@ const state = {
   name: "",
   pairs: [],
   index: -1,
+  saved: null,
+  semantic: 72,
+  lexical: 76,
   lang: "en",
   theme: "system",
 };
@@ -26,7 +33,12 @@ const state = {
 const openBtn = document.querySelector("#open");
 const fileInput = document.querySelector("#file");
 const nextBtn = document.querySelector("#next");
+const saveBtn = document.querySelector("#save");
 const downloadBtn = document.querySelector("#download");
+const semanticInput = document.querySelector("#semantic");
+const lexicalInput = document.querySelector("#lexical");
+const semanticValue = document.querySelector("#semantic-value");
+const lexicalValue = document.querySelector("#lexical-value");
 const langSelect = document.querySelector("#lang");
 const themeSelect = document.querySelector("#theme");
 const filename = document.querySelector("#filename");
@@ -37,6 +49,9 @@ const error = document.querySelector("#error");
 const drop = document.querySelector("#drop");
 const fileList = document.querySelector("#file-list");
 const filesEmpty = document.querySelector("#files-empty");
+const resume = document.querySelector("#resume");
+const resumeYes = document.querySelector("#resume-yes");
+const resumeNo = document.querySelector("#resume-no");
 const editors = [
   document.querySelector("#left-editor"),
   document.querySelector("#right-editor"),
@@ -47,6 +62,10 @@ const editors = [
 
 let request = null;
 let syncing = false;
+let draftTimer = null;
+let draftGen = 0;
+let openToken = 0;
+let resumeWait = null;
 
 function storageGet(key) {
   try {
@@ -133,12 +152,41 @@ function highlighted(text, span) {
 function currentPair() {
   if (state.index < 0) return null;
   const pair = state.pairs[state.index];
-  if (!pair || !pairUsable(pair, state.text.length)) return null;
-  return pair;
+  return shown(pair) ? pair : null;
 }
 
 function alivePairs() {
-  return state.pairs.filter((pair) => pairUsable(pair, state.text.length));
+  return state.pairs.filter((pair) => shown(pair));
+}
+
+function shown(pair) {
+  if (!pair || !pairUsable(pair, state.text.length)) return false;
+  return pair.semantic * 100 >= state.semantic || pair.lexical * 100 >= state.lexical;
+}
+
+function readThreshold(raw, fallback) {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 50 || value > 95) return fallback;
+  return value;
+}
+
+function showThresholds() {
+  semanticInput.value = String(state.semantic);
+  lexicalInput.value = String(state.lexical);
+  semanticValue.textContent = `${state.semantic}%`;
+  lexicalValue.textContent = `${state.lexical}%`;
+}
+
+function onThreshold() {
+  state.semantic = readThreshold(semanticInput.value, 72);
+  state.lexical = readThreshold(lexicalInput.value, 76);
+  storageSet("kaimon-semantic", String(state.semantic));
+  storageSet("kaimon-lexical", String(state.lexical));
+  showThresholds();
+  if (!shown(state.pairs[state.index])) {
+    state.index = state.pairs.findIndex((pair) => shown(pair));
+  }
+  refresh(true);
 }
 
 function renderBackdrops() {
@@ -207,14 +255,16 @@ function refresh(jump) {
   setStatusText();
   nextBtn.disabled = !state.text || alivePairs().length === 0;
   downloadBtn.disabled = !state.text;
+  saveBtn.disabled = !state.name;
   drop.hidden = Boolean(state.text);
 }
 
-function loadDocument(name, text, pairs) {
+function loadDocument(name, text, pairs, clean) {
   state.name = name;
   state.text = text;
+  state.saved = clean ? text : null;
   state.pairs = pairs;
-  state.index = pairs.findIndex((pair) => pairUsable(pair, text.length));
+  state.index = pairs.findIndex((pair) => shown(pair));
   filename.textContent = name;
   for (const button of fileList.querySelectorAll("button")) {
     if (button.textContent === name) button.setAttribute("aria-current", "true");
@@ -236,6 +286,9 @@ function onEdit(source) {
   const change = diffChange(state.text, next);
   state.text = next;
   state.pairs = state.pairs.map((pair) => remapPair(pair, change.cut, change.endOld, change.insertLen));
+  if (!shown(state.pairs[state.index])) {
+    state.index = state.pairs.findIndex((pair) => shown(pair));
+  }
   const other = editors.find((editor) => editor.area !== source);
   const top = other.area.scrollTop;
   const left = other.area.scrollLeft;
@@ -250,11 +303,12 @@ function onEdit(source) {
   other.area.selectionStart = Math.min(Math.max(selStart, 0), len);
   other.area.selectionEnd = Math.min(Math.max(selEnd, 0), len);
   refresh(false);
+  scheduleDraft();
 }
 
 function showNext() {
   for (let i = state.index + 1; i < state.pairs.length; i += 1) {
-    if (pairUsable(state.pairs[i], state.text.length)) {
+    if (pairUsable(state.pairs[i], state.text.length) && shown(state.pairs[i])) {
       state.index = i;
       refresh(true);
       return;
@@ -290,15 +344,87 @@ async function readAnalysis(response) {
         setError(event.error || "K005", event.message);
         setStatusText();
       } else if (event.event === "result") {
-        loadDocument(event.name, event.text, event.pairs);
+        loadDocument(event.name, event.text, event.pairs, true);
       }
     }
   }
 }
 
+function stopResume(choice) {
+  resume.hidden = true;
+  const wait = resumeWait;
+  resumeWait = null;
+  if (wait) wait(choice);
+}
+
+function askResume() {
+  resume.hidden = false;
+  applyLanguage();
+  return new Promise((resolve) => {
+    resumeWait = resolve;
+  });
+}
+
+async function fetchDraft(name) {
+  const response = await fetch(`/api/draft?name=${encodeURIComponent(name)}`);
+  if (response.status === 404) return null;
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setError(payload.error || "K012", payload.message);
+    return null;
+  }
+  return payload;
+}
+
+async function discardDraft(name) {
+  await fetch(`/api/draft?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+function scheduleDraft() {
+  clearTimeout(draftTimer);
+  const gen = ++draftGen;
+  draftTimer = setTimeout(() => sendDraft(gen), 700);
+}
+
+async function sendDraft(gen) {
+  if (!state.name || gen !== draftGen) return;
+  if (state.saved !== null && state.text === state.saved) {
+    await discardDraft(state.name);
+    return;
+  }
+  const response = await fetch("/api/draft", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: state.name, text: state.text, pairs: state.pairs }),
+  });
+  if (gen !== draftGen) {
+    if (state.saved !== null && state.text === state.saved) await discardDraft(state.name);
+    return;
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    setError(payload.error || "K012", payload.message);
+  }
+}
+
+async function chooseDraft(name) {
+  const draft = await fetchDraft(name);
+  if (!draft) return "missing";
+  const choice = await askResume();
+  if (choice !== "continue") return choice;
+  loadDocument(draft.name, draft.text, draft.pairs, false);
+  return "continue";
+}
+
 async function openSaved(name) {
+  const token = ++openToken;
   clearError();
+  stopResume("abort");
   request?.abort();
+  const choice = await chooseDraft(name);
+  if (token !== openToken || choice === "abort") return;
+  if (choice === "continue") return;
+  if (choice === "saved") await discardDraft(name);
   const current = new AbortController();
   request = current;
   showProgress({ step: "read", percent: 2 });
@@ -310,7 +436,7 @@ async function openSaved(name) {
       body: JSON.stringify({ name }),
       signal: current.signal,
     });
-    if (current.signal.aborted) return;
+    if (current.signal.aborted || token !== openToken) return;
     await readAnalysis(response);
   } catch (err) {
     if (err.name === "AbortError") return;
@@ -349,7 +475,13 @@ async function openFile(file) {
     setError("K008");
     return;
   }
+  const token = ++openToken;
+  stopResume("abort");
   request?.abort();
+  const choice = await chooseDraft(file.name);
+  if (token !== openToken || choice === "abort") return;
+  if (choice === "continue") return;
+  if (choice === "saved") await discardDraft(file.name);
   const current = new AbortController();
   request = current;
   showProgress({ step: "read", percent: 2 });
@@ -358,7 +490,7 @@ async function openFile(file) {
   body.append("file", file, file.name);
   try {
     const response = await fetch("/api/analyze", { method: "POST", body, signal: current.signal });
-    if (current.signal.aborted) return;
+    if (current.signal.aborted || token !== openToken) return;
     await readAnalysis(response);
   } catch (err) {
     if (err.name === "AbortError") return;
@@ -374,6 +506,31 @@ fileInput.addEventListener("change", () => {
   openFile(file);
 });
 nextBtn.addEventListener("click", showNext);
+saveBtn.addEventListener("click", async () => {
+  if (!state.name) return;
+  clearTimeout(draftTimer);
+  draftGen += 1;
+  const response = await fetch("/api/save", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: state.name, text: state.text, pairs: state.pairs }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setError(payload.error || "K011", payload.message);
+    return;
+  }
+  clearError();
+  state.saved = state.text;
+  state.name = payload.name || state.name;
+  filename.textContent = state.name;
+  status.textContent = t("30");
+  loadFiles();
+});
+resumeYes.addEventListener("click", () => stopResume("continue"));
+resumeNo.addEventListener("click", () => stopResume("saved"));
+semanticInput.addEventListener("input", onThreshold);
+lexicalInput.addEventListener("input", onThreshold);
 downloadBtn.addEventListener("click", () => {
   const blob = new Blob([state.text], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
@@ -412,8 +569,11 @@ const savedLang = storageGet("kaimon-lang");
 const savedTheme = storageGet("kaimon-theme");
 state.lang = savedLang === "en" || savedLang === "ru" ? savedLang : systemLang();
 state.theme = savedTheme === "light" || savedTheme === "dark" || savedTheme === "system" ? savedTheme : "system";
+state.semantic = readThreshold(storageGet("kaimon-semantic"), 72);
+state.lexical = readThreshold(storageGet("kaimon-lexical"), 76);
 langSelect.value = state.lang;
 themeSelect.value = state.theme;
+showThresholds();
 applyTheme();
 
 const [enText, ruText] = await Promise.all([

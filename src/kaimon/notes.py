@@ -3,6 +3,12 @@ from pathlib import Path
 from kaimon.errors import AppError
 
 
+def safe_txt_name(name: str) -> str:
+    if not isinstance(name, str) or name != Path(name).name or name.startswith(".") or not name.lower().endswith(".txt"):
+        raise AppError("K008", "Only a .txt file can be opened.")
+    return name
+
+
 def list_txt(folder: Path) -> list[str]:
     if not folder.exists():
         return []
@@ -22,11 +28,10 @@ def list_txt(folder: Path) -> list[str]:
 
 
 def read_txt(folder: Path, name: str) -> bytes:
-    if not isinstance(name, str) or name != Path(name).name or name.startswith(".") or not name.lower().endswith(".txt"):
-        raise AppError("K008", "Only a .txt file can be opened.")
+    safe = safe_txt_name(name)
     try:
         root = folder.resolve()
-        path = (folder / name).resolve()
+        path = (folder / safe).resolve()
     except OSError:
         raise AppError("K010", "The notes folder cannot be read.", status=500) from None
     if path != root and root not in path.parents:

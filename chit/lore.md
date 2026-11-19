@@ -4,7 +4,9 @@
 - Next only scrolls and highlights a pair. It must not select text or delete anything.
 - A pair is skipped when a highlight collapsed, the two sides overlap, or one side lost most of its original length. Do not drop a pair only because a paraphrase has low word overlap.
 - Uploads are normalized to UTF-8 and `\n` before editing. UTF-8 is tried first, then Windows-1251; UTF-16 is accepted only with a BOM. The download is that normalized text, not the original bytes.
-- The side list shows only `.txt` files in the notes folder, not files in subfolders. Opening one loads it into both panels. Edits are not written back to that folder.
+- The side list shows only `.txt` files in the notes folder, not files in subfolders.
+- Save writes the open text back into that notes file. Until Save, edits are stored in the program data `.temp` directory and offered again when that file is opened. Opening the saved file deletes that temporary copy.
+- A stored scan is used only when the normalized text and the model both match. The meaning and wording sliders hide pairs and do not run the model again.
 
 ## External Compatibility Constraints
 

@@ -77,7 +77,8 @@ def test_model_and_compare_errors(monkeypatch):
 
 
 def test_notes_folder(tmp_path, monkeypatch):
-    monkeypatch.setattr("kaimon.server.NOTES", tmp_path)
+    monkeypatch.setattr("kaimon.server.FILES", tmp_path)
+    monkeypatch.setattr("kaimon.server.DATA", tmp_path / "program")
     (tmp_path / "beta.txt").write_text("beta", encoding="utf-8")
     (tmp_path / "Alpha.TXT").write_text("alpha", encoding="utf-8")
     (tmp_path / "skip.md").write_text("no", encoding="utf-8")
@@ -101,7 +102,42 @@ def test_notes_folder(tmp_path, monkeypatch):
     assert _events(opened)[-1]["text"] == "beta"
     blocked = tmp_path / "not-a-folder"
     blocked.write_text("x", encoding="utf-8")
-    monkeypatch.setattr("kaimon.server.NOTES", blocked)
+    monkeypatch.setattr("kaimon.server.FILES", blocked)
     unreadable = client.get("/api/files")
     assert unreadable.status_code == 500
     assert unreadable.json()["error"] == "K010"
+
+
+def test_draft_save_and_scan_cache(tmp_path, monkeypatch):
+    files = tmp_path / "files"
+    data = tmp_path / "data"
+    files.mkdir()
+    monkeypatch.setattr("kaimon.server.FILES", files)
+    monkeypatch.setattr("kaimon.server.DATA", data)
+    (files / "notes.txt").write_text("original\n", encoding="utf-8")
+    calls = {"n": 0}
+
+    def fake(text, progress=None):
+        calls["n"] += 1
+        return [{"left": [0, 4], "right": [5, 9], "score": 0.91, "semantic": 0.8, "lexical": 0.91, "leftLen": 4, "rightLen": 4}]
+
+    monkeypatch.setattr("kaimon.server.find_pairs", fake)
+    body = "заметка достаточно длинная для правки и повторного открытия.\n"
+    pair = {"left": [0, 4], "right": [5, 9], "score": 0.5, "semantic": 0.5, "lexical": 0.8, "leftLen": 4, "rightLen": 4}
+    stored = client.put("/api/draft", json={"name": "notes.txt", "text": body, "pairs": [pair]})
+    assert stored.status_code == 200
+    draft = client.get("/api/draft", params={"name": "notes.txt"})
+    assert draft.json()["text"] == body
+    saved = client.post("/api/save", json={"name": "notes.txt", "text": body, "pairs": [pair]})
+    assert saved.status_code == 200
+    assert (files / "notes.txt").read_text(encoding="utf-8") == body
+    assert client.get("/api/draft", params={"name": "notes.txt"}).status_code == 404
+    opened = client.post("/api/open", json={"name": "notes.txt"})
+    assert _events(opened)[-1]["pairs"][0]["semantic"] == 0.5
+    assert calls["n"] == 0
+    (files / "other.txt").write_text("other text that is not cached yet.\n", encoding="utf-8")
+    first = client.post("/api/open", json={"name": "other.txt"})
+    assert _events(first)[-1]["pairs"][0]["score"] == 0.91
+    second = client.post("/api/open", json={"name": "other.txt"})
+    assert _events(second)[-1]["pairs"][0]["score"] == 0.91
+    assert calls["n"] == 1

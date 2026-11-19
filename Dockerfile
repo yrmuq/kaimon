@@ -18,6 +18,5 @@ COPY languages ./languages
 COPY src ./src
 
 EXPOSE 8080
-ENV KAIMON_NOTES=/data
-RUN mkdir -p /data
+RUN mkdir -p /data/files /data/data
 CMD ["python", "-m", "kaimon"]

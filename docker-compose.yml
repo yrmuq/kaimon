@@ -8,7 +8,8 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - ${LOCATION}/docker/data/kaimon:/data
+      - ${LOCATION}/docker/data/kaimon/files:/data/files
+      - ${LOCATION}/docker/data/kaimon/data:/data/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health')"]
       interval: 15s

@@ -8,9 +8,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from kaimon.analyze import find_pairs
+from kaimon.analyze import MODEL_NAME, find_pairs
 from kaimon.errors import AppError, ModelError
 from kaimon.notes import list_txt, read_txt
+from kaimon.store import clean_pairs, clean_text, delete_draft, load_scan, read_draft, store_scan, write_draft, write_note
 from kaimon.textio import decode_text, read_limited
 
 logger = logging.getLogger("kaimon")
@@ -18,7 +19,8 @@ PACKAGE = Path(__file__).resolve().parent
 ROOT = PACKAGE.parents[1]
 LANG_DIR = ROOT / "languages"
 LANG_FILES = {"English.ini", "Russian.ini"}
-NOTES = Path(os.environ.get("KAIMON_NOTES", "/data"))
+FILES = Path(os.environ.get("KAIMON_FILES", "/data/files"))
+DATA = Path(os.environ.get("KAIMON_DATA", "/data/data"))
 
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
@@ -52,7 +54,39 @@ def language(name: str):
 
 @app.get("/api/files")
 def files():
-    return {"files": list_txt(NOTES)}
+    return {"files": list_txt(FILES)}
+
+
+@app.get("/api/draft")
+def draft_get(name: str):
+    return read_draft(DATA, name)
+
+
+@app.put("/api/draft")
+async def draft_put(request: Request):
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise AppError("K014", "The document is not valid.")
+    return write_draft(DATA, body.get("name"), body.get("text"), body.get("pairs"))
+
+
+@app.delete("/api/draft")
+def draft_delete(name: str):
+    delete_draft(DATA, name)
+    return {"ok": True}
+
+
+@app.post("/api/save")
+async def save(request: Request):
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise AppError("K014", "The document is not valid.")
+    text = clean_text(body.get("text"))
+    pairs = clean_pairs(body.get("pairs"), len(text))
+    safe = write_note(FILES, body.get("name"), text)
+    store_scan(DATA, text, MODEL_NAME, pairs)
+    delete_draft(DATA, safe)
+    return {"ok": True, "name": safe}
 
 
 def _prepare_upload(name: str, data: bytes) -> tuple[str, str]:
@@ -73,7 +107,13 @@ def _stream(name: str, text: str) -> StreamingResponse:
     async def work() -> None:
         await queue.put({"event": "progress", "step": "read", "percent": 2})
         try:
-            pairs = await asyncio.to_thread(find_pairs, text, progress=progress)
+            cached = load_scan(DATA, text, MODEL_NAME)
+            if cached is None:
+                pairs = await asyncio.to_thread(find_pairs, text, progress=progress)
+                store_scan(DATA, text, MODEL_NAME, pairs)
+            else:
+                pairs = cached
+                await queue.put({"event": "progress", "step": "select", "percent": 100})
             await queue.put({"event": "result", "name": name, "text": text, "pairs": pairs})
         except ModelError:
             logger.error("K004 The similarity model failed to load.")
@@ -124,6 +164,6 @@ async def analyze(request: Request):
 async def open_note(request: Request):
     body = await request.json()
     name = body.get("name") if isinstance(body, dict) else None
-    data = read_txt(NOTES, name)
+    data = read_txt(FILES, name)
     safe, text = _prepare_upload(Path(name).name, data)
     return _stream(safe, text)

@@ -97,7 +97,7 @@ def lexical_candidates(snippets: list[str]) -> set[tuple[int, int]]:
     return chosen
 
 
-def select_pairs(text: str, spans: list[tuple[int, int]], vectors: np.ndarray) -> list[dict]:
+def select_pairs(text: str, spans: list[tuple[int, int]], vectors: np.ndarray, semantic_min: float = SEMANTIC_MIN, lexical_min: float = LEXICAL_MIN) -> list[dict]:
     n = len(spans)
     if n < 2:
         return []
@@ -113,7 +113,7 @@ def select_pairs(text: str, spans: list[tuple[int, int]], vectors: np.ndarray) -
         order = idx[np.argsort(row[idx])[::-1]]
         for j in order:
             j = int(j)
-            if i == j or float(row[j]) < SEMANTIC_MIN:
+            if i == j or float(row[j]) < semantic_min:
                 continue
             chosen.add((i, j) if i < j else (j, i))
 
@@ -123,7 +123,7 @@ def select_pairs(text: str, spans: list[tuple[int, int]], vectors: np.ndarray) -
             continue
         semantic = float(sims[i, j])
         lexical = ratio(snippets[i], snippets[j]) / 100.0
-        if semantic < SEMANTIC_MIN and lexical < LEXICAL_MIN:
+        if semantic < semantic_min and lexical < lexical_min:
             continue
         left, right = (i, j) if spans[i][0] <= spans[j][0] else (j, i)
         raw.append(

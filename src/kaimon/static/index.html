@@ -15,6 +15,7 @@
     </div>
     <button type="button" id="next" class="next" data-i18n="2" disabled></button>
     <div class="cluster right">
+      <button type="button" id="save" data-i18n="29" disabled></button>
       <button type="button" id="download" data-i18n="4" disabled></button>
       <label>
         <span data-i18n="5"></span>
@@ -33,6 +34,18 @@
       </label>
     </div>
   </header>
+  <div class="thresholds">
+    <label>
+      <span data-i18n="31"></span>
+      <input id="semantic" type="range" min="50" max="95" step="1" value="72">
+      <span id="semantic-value">72%</span>
+    </label>
+    <label>
+      <span data-i18n="32"></span>
+      <input id="lexical" type="range" min="50" max="95" step="1" value="76">
+      <span id="lexical-value">76%</span>
+    </label>
+  </div>
   <p id="status" aria-live="polite"></p>
   <div id="progress" hidden><span></span></div>
   <p id="error" role="alert" hidden></p>
@@ -55,6 +68,13 @@
       <p data-i18n="12"></p>
       <p class="hint" data-i18n="13"></p>
     </div>
+    </div>
+    <div id="resume" hidden>
+      <p data-i18n="33"></p>
+      <div class="cluster">
+        <button type="button" id="resume-yes" data-i18n="34"></button>
+        <button type="button" id="resume-no" data-i18n="35"></button>
+      </div>
     </div>
   </div>
   <script type="module" src="/static/app.mjs"></script>

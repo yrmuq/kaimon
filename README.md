@@ -25,6 +25,8 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 - Open one `.txt` file and edit it in two panels
 - Open a `.txt` file from the mounted notes folder
 - Find repeated passages and Russian paraphrases locally, without an external API
+- Set how close a meaning or a wording match must be
+- Save the edited file, and restore unsaved edits after a restart
 - Move through the pairs with Next; the mark is only a guide
 - Delete the extra text yourself with Backspace
 - Download the edited file
@@ -40,13 +42,16 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 | --- | --- |
 | Open | Load a `.txt` file into both panels |
 | Notes | Open a `.txt` file from the mounted folder |
-| Download | Save the edited text |
+| Save | Write the edited text back to that file |
+| Download | Download the edited text |
+| Meaning | Hide pairs below this semantic similarity |
+| Wording | Hide pairs below this word similarity |
 | Next | Scroll each panel to the next similar place |
 | Backspace | Delete the selection in the panel being edited |
 | Language | Switch between English and Russian |
 | Theme | Light, dark, or match the system |
 
-Both panels are the same file. A deletion in one panel changes the other. The mark can be shorter or longer than the text you want to remove.
+Both panels are the same file. A deletion in one panel changes the other. The mark can be shorter or longer than the text you want to remove. A pair stays visible when at least one score is high enough. Moving a slider does not scan the file again.
 
 </details>
 
@@ -99,9 +104,10 @@ LOCATION=/opt/docker
 
 | Container path | Purpose |
 | --- | --- |
-| `/data` | `.txt` notes shown in the side list |
+| `/data/files` | `.txt` notes shown in the side list |
+| `/data/data` | Scan results and unsaved edits in `.temp` |
 
-Put `.txt` files in the `kaimon` directory under `LOCATION`. The page lists that folder and does not change the files. The model is inside the image. Download the edited text from the page.
+Put `.txt` files in `${LOCATION}/docker/data/kaimon/files`. Save writes a notes file there. Edits are also stored under `${LOCATION}/docker/data/kaimon/data` until Save, and offered again if the page or the container stops first. The model is inside the image.
 
 ---
 

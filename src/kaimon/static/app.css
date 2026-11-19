@@ -137,7 +137,25 @@ label {
   padding-bottom: 4px;
 }
 
+.thresholds {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  padding: 8px 16px 0;
+}
+
+.thresholds label {
+  color: var(--ink);
+}
+
+.thresholds input[type="range"] {
+  width: 140px;
+  accent-color: var(--accent);
+}
+
 .workspace {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -255,7 +273,23 @@ label {
   background: var(--bg);
 }
 
-#drop[hidden] { display: none; }
+#resume {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--bg);
+}
+
+#resume[hidden] { display: none; }
+
+#resume p { margin: 0; max-width: 28rem; }
 
 #drop p { margin: 0; max-width: 38rem; }
 
