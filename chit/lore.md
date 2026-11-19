@@ -8,4 +8,5 @@
 ## External Compatibility Constraints
 
 - Semantic comparison uses the local model `sentence-transformers/paraphrase-multilingual-mpnet-base-v2` baked into the image. Notes are Russian and may be paraphrased, and the container must not call an external API.
+- Compose pulls `ghcr.io/yrmuq/kaimon:dev` and has no `build` key. Do not point it at `:latest` until a stable release moves that tag.
 - Compose attaches only to the external Docker network `homelab`. Do not add a default network or a database service.

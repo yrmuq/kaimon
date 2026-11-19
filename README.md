@@ -54,19 +54,17 @@ Both panels are the same file. A deletion in one panel changes the other. The ma
 
 ### Architecture & Format Support
 
-No desktop package is published.
+No desktop package is published. The container dev image is `linux/amd64` only.
 
 | Format | x86_64 | arm64 |
 | --- | --- | --- |
 | `AppImage` | ❌ | ❌ |
 | `Flatpak` | ❌ | ❌ |
 
-No container image is published yet. Build it locally. `arm64` has not been started.
-
 | Architecture | Status |
 | --- | --- |
-| `x86_64` | Not published |
-| `arm64` | Not published |
+| `x86_64` | ✅ `ghcr.io/yrmuq/kaimon:dev` |
+| `arm64` | ❌ |
 
 ### Release Scheme
 
@@ -82,13 +80,12 @@ Flatpak is not available.
 
 ### Docker / Self-Hosted
 
-The compose file is `docker-compose.yml`. The external network `homelab` must already exist. No image has been published, so the first start builds one and downloads the similarity model into that image.
+The compose file is `docker-compose.yml`. It pulls `ghcr.io/yrmuq/kaimon:dev`, which GitHub builds on every push to `dev`. That tag is not the stable `latest` image. The external network `homelab` must already exist.
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
-
-Once an image is published, update with `docker compose pull` and then `docker compose up -d`.
 
 `.env`:
 

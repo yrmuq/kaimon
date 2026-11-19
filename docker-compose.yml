@@ -2,8 +2,7 @@ services:
 
   kaimon:
     container_name: kaimon
-    image: ghcr.io/yrmuq/kaimon:latest
-    build: .
+    image: ghcr.io/yrmuq/kaimon:dev
     ports:
       - ${KAIMON}:8080
     environment:

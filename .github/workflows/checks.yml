@@ -5,6 +5,9 @@ on:
     branches: [dev, main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: true
@@ -23,3 +26,96 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: pytest
       - run: node --test tests/pairs.test.mjs
+
+  image:
+    if: github.ref == 'refs/heads/dev'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/yrmuq/kaimon
+          tags: |
+            type=raw,value=dev
+            type=sha,prefix=sha-,format=short
+          labels: |
+            org.opencontainers.image.licenses=GPL-3.0-only
+            org.opencontainers.image.title=Kaimon
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=kaimon-amd64
+          cache-to: type=gha,mode=max,scope=kaimon-amd64
+          provenance: false
+          sbom: false
+      - name: Make the package public
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            "/user/packages/container/kaimon" \
+            -f visibility=public
+      - name: Check the image starts
+        run: |
+          docker pull ghcr.io/yrmuq/kaimon:dev
+          docker run -d --name kaimon -p 8080:8080 ghcr.io/yrmuq/kaimon:dev
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/api/health >/dev/null; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ok" != 1 ]; then
+            docker logs kaimon
+            exit 1
+          fi
+          printf '%s\n' 'Встреча с подрядчиком перенесена на четверг, нужно согласовать смету и список материалов.' '' 'Билеты на поезд уже куплены, гостиница рядом с вокзалом.' '' 'Встреча с подрядчиком перенесена на четверг, нужно согласовать смету и список материалов.' > notes.txt
+          code=$(curl -sS -o /tmp/kaimon-analyze.json -w "%{http_code}" --max-time 180 -F "file=@notes.txt;filename=notes.txt" http://127.0.0.1:8080/api/analyze)
+          echo "analyze ${code}"
+          if [ "$code" != 200 ]; then
+            cat /tmp/kaimon-analyze.json
+            docker logs kaimon
+            exit 1
+          fi
+          python3 -c 'import json; payload=json.load(open("/tmp/kaimon-analyze.json")); assert payload["pairs"]'
+      - name: Update the dev draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          body="Development image ghcr.io/yrmuq/kaimon:dev (${GITHUB_SHA}). Not a stable release."
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.draft==true and .tag_name=="dev") | .id' | head -n 1)
+          if [ -z "$id" ]; then
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name=dev \
+              -f name=dev \
+              -f target_commitish="$GITHUB_SHA" \
+              -f body="$body" \
+              -F draft=true >/dev/null
+          else
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${id}" \
+              -f target_commitish="$GITHUB_SHA" \
+              -f body="$body" \
+              -F draft=true >/dev/null
+            gh api "repos/${GITHUB_REPOSITORY}/releases/${id}/assets" --jq '.[].id' | while read -r aid; do
+              [ -n "$aid" ] && gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${aid}"
+            done
+          fi
