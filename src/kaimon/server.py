@@ -10,8 +10,18 @@ from fastapi.staticfiles import StaticFiles
 
 from kaimon.analyze import MODEL_NAME, find_pairs
 from kaimon.errors import AppError, ModelError
-from kaimon.notes import list_txt, read_txt
-from kaimon.store import clean_pairs, clean_text, delete_draft, load_scan, read_draft, store_scan, write_draft, write_note
+from kaimon.notes import list_txt, read_txt, safe_txt_name
+from kaimon.store import (
+    clean_pairs,
+    clean_text,
+    delete_draft,
+    load_scan,
+    read_draft,
+    store_scan,
+    text_key,
+    write_draft,
+    write_note,
+)
 from kaimon.textio import decode_text, read_limited
 
 logger = logging.getLogger("kaimon")
@@ -21,6 +31,8 @@ LANG_DIR = ROOT / "languages"
 LANG_FILES = {"English.ini", "Russian.ini"}
 FILES = Path(os.environ.get("KAIMON_FILES", "/data/files"))
 DATA = Path(os.environ.get("KAIMON_DATA", "/data/data"))
+_jobs_by_key = {}
+_jobs_by_name = {}
 
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
@@ -95,50 +107,111 @@ def _prepare_upload(name: str, data: bytes) -> tuple[str, str]:
     return name, decode_text(read_limited([data]))
 
 
-def _stream(name: str, text: str) -> StreamingResponse:
+class _Job:
+    def __init__(self, name: str, text: str, key: str):
+        self.name = name
+        self.text = text
+        self.key = key
+        self.events = []
+        self.subscribers = []
+        self.done = False
+        self.failed = False
+
+
+def _publish(job: _Job, payload) -> None:
+    job.events.append(payload)
+    for queue in list(job.subscribers):
+        queue.put_nowait(True)
+
+
+async def _async_publish(job: _Job, payload) -> None:
+    _publish(job, payload)
+
+
+async def _run_job(job: _Job) -> None:
     loop = asyncio.get_running_loop()
-    queue: asyncio.Queue = asyncio.Queue()
 
     def progress(step: str, percent: int, **extra) -> None:
         payload = {"event": "progress", "step": step, "percent": int(percent)}
         payload.update(extra)
-        asyncio.run_coroutine_threadsafe(queue.put(payload), loop).result()
+        asyncio.run_coroutine_threadsafe(_async_publish(job, payload), loop).result()
 
-    async def work() -> None:
-        await queue.put({"event": "progress", "step": "read", "percent": 2})
-        try:
-            cached = load_scan(DATA, text, MODEL_NAME)
-            if cached is None:
-                pairs = await asyncio.to_thread(find_pairs, text, progress=progress)
-                store_scan(DATA, text, MODEL_NAME, pairs)
-            else:
-                pairs = cached
-                await queue.put({"event": "progress", "step": "select", "percent": 100})
-            await queue.put({"event": "result", "name": name, "text": text, "pairs": pairs})
-        except ModelError:
-            logger.error("K004 The similarity model failed to load.")
-            await queue.put({"event": "error", "error": "K004", "message": "The similarity model failed to load."})
-        except AppError as exc:
-            logger.error("%s %s", exc.code, exc.message)
-            await queue.put({"event": "error", "error": exc.code, "message": exc.message})
-        except Exception:
-            logger.exception("K005 The comparison failed.")
-            await queue.put({"event": "error", "error": "K005", "message": "The comparison failed."})
-        finally:
-            await queue.put(None)
+    _publish(job, {"event": "progress", "step": "read", "percent": 2})
+    try:
+        cached = load_scan(DATA, job.text, MODEL_NAME)
+        if cached is None:
+            pairs = await asyncio.to_thread(find_pairs, job.text, progress=progress)
+            store_scan(DATA, job.text, MODEL_NAME, pairs)
+        else:
+            pairs = cached
+            _publish(job, {"event": "progress", "step": "select", "percent": 100})
+        _publish(job, {"event": "result", "name": job.name, "text": job.text, "pairs": pairs})
+    except ModelError:
+        job.failed = True
+        logger.error("K004 The similarity model failed to load.")
+        _publish(job, {"event": "error", "error": "K004", "message": "The similarity model failed to load."})
+    except AppError as exc:
+        job.failed = True
+        logger.error("%s %s", exc.code, exc.message)
+        _publish(job, {"event": "error", "error": exc.code, "message": exc.message})
+    except Exception:
+        job.failed = True
+        logger.exception("K005 The comparison failed.")
+        _publish(job, {"event": "error", "error": "K005", "message": "The comparison failed."})
+    finally:
+        job.done = True
+        if job.failed:
+            if _jobs_by_key.get(job.key) is job:
+                _jobs_by_key.pop(job.key, None)
+            if _jobs_by_name.get(job.name) is job:
+                _jobs_by_name.pop(job.name, None)
+        _publish(job, None)
 
-    async def generate():
-        task = asyncio.create_task(work())
-        try:
-            while True:
-                item = await queue.get()
+
+def _start_job(name: str, text: str) -> _Job:
+    key = text_key(text)
+    current = _jobs_by_key.get(key)
+    if current is not None and not current.failed:
+        _jobs_by_name[name] = current
+        return current
+    job = _Job(name, text, key)
+    _jobs_by_key[key] = job
+    _jobs_by_name[name] = job
+    asyncio.create_task(_run_job(job))
+    return job
+
+
+async def _listen(job: _Job):
+    queue: asyncio.Queue = asyncio.Queue()
+    job.subscribers.append(queue)
+    sent = 0
+    try:
+        while True:
+            while sent < len(job.events):
+                item = job.events[sent]
+                sent += 1
                 if item is None:
-                    break
+                    return
                 yield json.dumps(item, ensure_ascii=False) + "\n"
-        finally:
-            task.cancel()
+            if job.done and sent >= len(job.events):
+                return
+            await queue.get()
+    finally:
+        if queue in job.subscribers:
+            job.subscribers.remove(queue)
 
-    return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+def _stream(name: str, text: str) -> StreamingResponse:
+    return StreamingResponse(_listen(_start_job(name, text)), media_type="application/x-ndjson")
+
+
+@app.get("/api/job")
+def job_stream(name: str):
+    safe = safe_txt_name(name)
+    job = _jobs_by_name.get(safe)
+    if job is None or job.failed:
+        raise AppError("K015", "There is no comparison running.", status=404)
+    return StreamingResponse(_listen(job), media_type="application/x-ndjson")
 
 
 @app.post("/api/analyze")

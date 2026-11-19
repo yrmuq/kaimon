@@ -34,7 +34,8 @@ def test_analyze_errors(monkeypatch):
     assert client.post("/api/analyze", files={"file": ("a.txt", b"123456789", "text/plain")}).json()["error"] == "K003"
 
 
-def test_analyze_returns_full_text(monkeypatch):
+def test_analyze_returns_full_text(tmp_path, monkeypatch):
+    monkeypatch.setattr("kaimon.server.DATA", tmp_path / "data")
     seen = {}
 
     def fake(text, progress=None):
@@ -141,3 +142,34 @@ def test_draft_save_and_scan_cache(tmp_path, monkeypatch):
     second = client.post("/api/open", json={"name": "other.txt"})
     assert _events(second)[-1]["pairs"][0]["score"] == 0.91
     assert calls["n"] == 1
+
+
+def test_job_survives_and_replays(tmp_path, monkeypatch):
+    files = tmp_path / "files"
+    data = tmp_path / "data"
+    files.mkdir()
+    monkeypatch.setattr("kaimon.server.FILES", files)
+    monkeypatch.setattr("kaimon.server.DATA", data)
+    text = "hello from the notes file\n"
+    (files / "notes.txt").write_text(text, encoding="utf-8")
+    calls = {"n": 0}
+
+    def fake(text, progress=None):
+        calls["n"] += 1
+        if progress:
+            progress("embed", 50, done=1, total=1)
+        return [{"left": [0, 4], "right": [5, 9], "score": 0.91, "semantic": 0.8, "lexical": 0.91, "leftLen": 4, "rightLen": 4}]
+
+    monkeypatch.setattr("kaimon.server.find_pairs", fake)
+    opened = client.post("/api/open", json={"name": "notes.txt"})
+    assert _events(opened)[-1]["event"] == "result"
+    import shutil
+
+    shutil.rmtree(data)
+    replay = client.get("/api/job", params={"name": "notes.txt"})
+    assert replay.status_code == 200
+    assert _events(replay)[-1]["text"] == text
+    assert calls["n"] == 1
+    missing = client.get("/api/job", params={"name": "gone.txt"})
+    assert missing.status_code == 404
+    assert missing.json()["error"] == "K015"

@@ -7,6 +7,7 @@
 - The side list shows only `.txt` files in the notes folder, not files in subfolders.
 - Save writes the open text back into that notes file. Until Save, edits are stored in the program data `.temp` directory and offered again when that file is opened. Opening the saved file deletes that temporary copy.
 - A stored scan is used only when the normalized text and the model both match. The meaning and wording sliders hide pairs and do not run the model again.
+- Reloading the tab restores the open text, the current pair, and both scroll positions. Closing the tab does not cancel a comparison; the same file joins that comparison again.
 
 ## External Compatibility Constraints
 

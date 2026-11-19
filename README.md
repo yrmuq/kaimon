@@ -51,7 +51,7 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 | Language | Switch between English and Russian |
 | Theme | Light, dark, or match the system |
 
-Both panels are the same file. A deletion in one panel changes the other. The mark can be shorter or longer than the text you want to remove. A pair stays visible when at least one score is high enough. Moving a slider does not scan the file again.
+Both panels are the same file. A deletion in one panel changes the other. The mark can be shorter or longer than the text you want to remove. A pair stays visible when at least one score is high enough. Moving a slider does not scan the file again. Reloading the tab keeps the file, the edits, the pair, and the place in the text. A comparison keeps running if the tab reloads.
 
 </details>
 

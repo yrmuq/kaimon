@@ -11,6 +11,16 @@
     <div class="cluster left">
       <button type="button" id="open" data-i18n="3"></button>
       <input id="file" type="file" accept=".txt,text/plain">
+      <label class="slider">
+        <span data-i18n="31"></span>
+        <input id="semantic" type="range" min="50" max="95" step="1" value="72">
+        <span id="semantic-value">72%</span>
+      </label>
+      <label class="slider">
+        <span data-i18n="32"></span>
+        <input id="lexical" type="range" min="50" max="95" step="1" value="76">
+        <span id="lexical-value">76%</span>
+      </label>
       <span id="filename"></span>
     </div>
     <button type="button" id="next" class="next" data-i18n="2" disabled></button>
@@ -34,40 +44,30 @@
       </label>
     </div>
   </header>
-  <div class="thresholds">
-    <label>
-      <span data-i18n="31"></span>
-      <input id="semantic" type="range" min="50" max="95" step="1" value="72">
-      <span id="semantic-value">72%</span>
-    </label>
-    <label>
-      <span data-i18n="32"></span>
-      <input id="lexical" type="range" min="50" max="95" step="1" value="76">
-      <span id="lexical-value">76%</span>
-    </label>
-  </div>
-  <p id="status" aria-live="polite"></p>
-  <div id="progress" hidden><span></span></div>
-  <p id="error" role="alert" hidden></p>
   <div class="workspace">
     <aside id="files">
       <p class="files-label" data-i18n="27"></p>
       <ul id="file-list"></ul>
       <p id="files-empty" class="hint" data-i18n="28" hidden></p>
     </aside>
-    <div class="panes">
-    <div class="editor" id="left-editor">
-      <pre aria-hidden="true"></pre>
-      <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
-    </div>
-    <div class="editor" id="right-editor">
-      <pre aria-hidden="true"></pre>
-      <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
-    </div>
-    <div id="drop">
-      <p data-i18n="12"></p>
-      <p class="hint" data-i18n="13"></p>
-    </div>
+    <div class="main">
+      <p id="status" aria-live="polite"></p>
+      <div id="progress" hidden><span></span></div>
+      <p id="error" role="alert" hidden></p>
+      <div class="panes">
+      <div class="editor" id="left-editor">
+        <pre aria-hidden="true"></pre>
+        <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+      </div>
+      <div class="editor" id="right-editor">
+        <pre aria-hidden="true"></pre>
+        <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+      </div>
+      <div id="drop">
+        <p data-i18n="12"></p>
+        <p class="hint" data-i18n="13"></p>
+      </div>
+      </div>
     </div>
     <div id="resume" hidden>
       <p data-i18n="33"></p>

@@ -15,6 +15,7 @@ const ERROR_IDS = {
   K012: "111",
   K013: "112",
   K014: "113",
+  K015: "114",
 };
 
 const catalogs = { en: null, ru: null };
@@ -28,6 +29,8 @@ const state = {
   lexical: 76,
   lang: "en",
   theme: "system",
+  phase: "idle",
+  pendingName: "",
 };
 
 const openBtn = document.querySelector("#open");
@@ -66,6 +69,7 @@ let draftTimer = null;
 let draftGen = 0;
 let openToken = 0;
 let resumeWait = null;
+let sessionTimer = null;
 
 function storageGet(key) {
   try {
@@ -81,6 +85,46 @@ function storageSet(key, value) {
   } catch {
     /* private mode can reject storage; the choice still applies for this visit */
   }
+}
+
+function saveSession() {
+  clearTimeout(sessionTimer);
+  if (state.phase === "analyzing") {
+    const name = state.pendingName || state.name;
+    if (name) storageSet("kaimon-session", JSON.stringify({ phase: "analyzing", name }));
+    return;
+  }
+  if (!state.name) {
+    storageSet("kaimon-session", JSON.stringify({ phase: "idle" }));
+    return;
+  }
+  storageSet("kaimon-session", JSON.stringify({
+    phase: "ready",
+    name: state.name,
+    text: state.text,
+    pairs: state.pairs,
+    index: state.index,
+    saved: state.saved,
+    scrolls: editors.map((editor) => editor.area.scrollTop),
+    selections: editors.map((editor) => [editor.area.selectionStart, editor.area.selectionEnd]),
+  }));
+}
+
+function scheduleSession() {
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(saveSession, 200);
+}
+
+function markAnalyzing(name) {
+  state.phase = "analyzing";
+  state.pendingName = name;
+  saveSession();
+}
+
+function finishOpenAttempt() {
+  state.phase = "ready";
+  state.pendingName = "";
+  saveSession();
 }
 
 function systemLang() {
@@ -187,6 +231,7 @@ function onThreshold() {
     state.index = state.pairs.findIndex((pair) => shown(pair));
   }
   refresh(true);
+  scheduleSession();
 }
 
 function renderBackdrops() {
@@ -259,12 +304,15 @@ function refresh(jump) {
   drop.hidden = Boolean(state.text);
 }
 
-function loadDocument(name, text, pairs, clean) {
+function loadDocument(name, text, pairs, clean, view) {
+  state.phase = "ready";
+  state.pendingName = "";
   state.name = name;
   state.text = text;
   state.saved = clean ? text : null;
   state.pairs = pairs;
   state.index = pairs.findIndex((pair) => shown(pair));
+  if (view && Number.isInteger(view.index)) state.index = view.index;
   filename.textContent = name;
   for (const button of fileList.querySelectorAll("button")) {
     if (button.textContent === name) button.setAttribute("aria-current", "true");
@@ -276,7 +324,20 @@ function loadDocument(name, text, pairs, clean) {
     editor.area.scrollTop = 0;
     editor.area.scrollLeft = 0;
   }
-  refresh(true);
+  refresh(!view);
+  if (view) {
+    const len = text.length;
+    editors.forEach((editor, i) => {
+      editor.area.scrollTop = Number(view.scrolls?.[i]) || 0;
+      const sel = view.selections?.[i];
+      if (Array.isArray(sel)) {
+        editor.area.selectionStart = Math.min(Math.max(Number(sel[0]) || 0, 0), len);
+        editor.area.selectionEnd = Math.min(Math.max(Number(sel[1]) || 0, 0), len);
+      }
+    });
+    renderBackdrops();
+  }
+  saveSession();
 }
 
 function onEdit(source) {
@@ -304,6 +365,7 @@ function onEdit(source) {
   other.area.selectionEnd = Math.min(Math.max(selEnd, 0), len);
   refresh(false);
   scheduleDraft();
+  scheduleSession();
 }
 
 function showNext() {
@@ -311,6 +373,7 @@ function showNext() {
     if (pairUsable(state.pairs[i], state.text.length) && shown(state.pairs[i])) {
       state.index = i;
       refresh(true);
+      saveSession();
       return;
     }
   }
@@ -322,6 +385,7 @@ async function readAnalysis(response) {
   if (!response.ok || !type.includes("ndjson")) {
     const payload = await response.json().catch(() => ({}));
     setError(payload.error || "K005", payload.message);
+    finishOpenAttempt();
     setStatusText();
     return;
   }
@@ -342,6 +406,7 @@ async function readAnalysis(response) {
       if (event.event === "progress") showProgress(event);
       else if (event.event === "error") {
         setError(event.error || "K005", event.message);
+        finishOpenAttempt();
         setStatusText();
       } else if (event.event === "result") {
         loadDocument(event.name, event.text, event.pairs, true);
@@ -425,6 +490,7 @@ async function openSaved(name) {
   if (token !== openToken || choice === "abort") return;
   if (choice === "continue") return;
   if (choice === "saved") await discardDraft(name);
+  markAnalyzing(name);
   const current = new AbortController();
   request = current;
   showProgress({ step: "read", percent: 2 });
@@ -440,6 +506,7 @@ async function openSaved(name) {
     await readAnalysis(response);
   } catch (err) {
     if (err.name === "AbortError") return;
+    finishOpenAttempt();
     setError("K005");
     setStatusText();
   }
@@ -482,6 +549,7 @@ async function openFile(file) {
   if (token !== openToken || choice === "abort") return;
   if (choice === "continue") return;
   if (choice === "saved") await discardDraft(file.name);
+  markAnalyzing(file.name);
   const current = new AbortController();
   request = current;
   showProgress({ step: "read", percent: 2 });
@@ -494,6 +562,7 @@ async function openFile(file) {
     await readAnalysis(response);
   } catch (err) {
     if (err.name === "AbortError") return;
+    finishOpenAttempt();
     setError("K005");
     setStatusText();
   }
@@ -525,6 +594,7 @@ saveBtn.addEventListener("click", async () => {
   state.name = payload.name || state.name;
   filename.textContent = state.name;
   status.textContent = t("30");
+  saveSession();
   loadFiles();
 });
 resumeYes.addEventListener("click", () => stopResume("continue"));
@@ -554,16 +624,72 @@ for (const editor of editors) {
   editor.area.addEventListener("scroll", () => {
     editor.pre.scrollTop = editor.area.scrollTop;
     editor.pre.scrollLeft = editor.area.scrollLeft;
+    if (!syncing) scheduleSession();
   });
+  editor.area.addEventListener("keyup", () => scheduleSession());
+  editor.area.addEventListener("mouseup", () => scheduleSession());
 }
 window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("drop", (event) => {
   event.preventDefault();
   openFile(event.dataTransfer?.files?.[0]);
 });
+window.addEventListener("pagehide", () => {
+  saveSession();
+  if (!state.name || (state.saved !== null && state.text === state.saved)) return;
+  fetch("/api/draft", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: state.name, text: state.text, pairs: state.pairs }),
+    keepalive: true,
+  });
+});
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (state.theme === "system") applyTheme();
 });
+
+async function reconnect(name) {
+  clearError();
+  state.phase = "analyzing";
+  state.pendingName = name;
+  showProgress({ step: "read", percent: 2 });
+  try {
+    let response = await fetch(`/api/job?name=${encodeURIComponent(name)}`);
+    if (response.status === 404) {
+      response = await fetch("/api/open", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+    }
+    if (response.status === 404) {
+      finishOpenAttempt();
+      return;
+    }
+    await readAnalysis(response);
+  } catch {
+    finishOpenAttempt();
+    setError("K005");
+    setStatusText();
+  }
+}
+
+function restoreSession() {
+  let session = null;
+  try {
+    session = JSON.parse(storageGet("kaimon-session") || "");
+  } catch {
+    return;
+  }
+  if (!session || typeof session.name !== "string") return;
+  if (session.phase === "analyzing") {
+    reconnect(session.name);
+    return;
+  }
+  if (session.phase !== "ready" || typeof session.text !== "string" || !Array.isArray(session.pairs)) return;
+  const clean = session.saved !== null && session.saved === session.text;
+  loadDocument(session.name, session.text, session.pairs, clean, session);
+}
 
 const savedLang = storageGet("kaimon-lang");
 const savedTheme = storageGet("kaimon-theme");
@@ -584,4 +710,5 @@ catalogs.en = parseCatalog(enText);
 catalogs.ru = parseCatalog(ruText);
 applyLanguage();
 refresh(false);
+restoreSession();
 loadFiles();

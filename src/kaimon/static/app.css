@@ -117,9 +117,8 @@ label {
 
 #progress {
   height: 4px;
-  margin: 8px 16px 0;
+  margin: 8px 0 0;
   background: var(--line);
-  border-radius: 999px;
   overflow: hidden;
 }
 
@@ -137,20 +136,8 @@ label {
   padding-bottom: 4px;
 }
 
-.thresholds {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 16px 28px;
-  padding: 8px 16px 0;
-}
-
-.thresholds label {
-  color: var(--ink);
-}
-
-.thresholds input[type="range"] {
-  width: 140px;
+.slider input[type="range"] {
+  width: 92px;
   accent-color: var(--accent);
 }
 
@@ -159,7 +146,14 @@ label {
   flex: 1;
   min-height: 0;
   display: flex;
-  margin-top: 8px;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 #files {
