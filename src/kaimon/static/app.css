@@ -95,6 +95,11 @@ button.next {
   letter-spacing: 0.02em;
 }
 
+.pair-nav {
+  display: flex;
+  gap: 8px;
+}
+
 label {
   display: flex;
   align-items: center;
@@ -280,6 +285,8 @@ label {
   text-align: center;
   background: var(--bg);
 }
+
+#drop[hidden] { display: none !important; }
 
 #resume[hidden] { display: none; }
 

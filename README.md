@@ -46,6 +46,7 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 | Download | Download the edited text |
 | Meaning | Hide pairs below this semantic similarity |
 | Wording | Hide pairs below this word similarity |
+| Back | Scroll each panel to the previous similar place |
 | Next | Scroll each panel to the next similar place |
 | Backspace | Delete the selection in the panel being edited |
 | Language | Switch between English and Russian |

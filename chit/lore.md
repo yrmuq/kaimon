@@ -1,7 +1,7 @@
 ## Required Behavior
 
 - Both panels edit one shared document. Search spans are not records and must never be written back as a cut-up file.
-- Next only scrolls and highlights a pair. It must not select text or delete anything.
+- Next only scrolls and highlights the next pair. Back does the same for the previous pair. Neither selects text or deletes anything.
 - A pair is skipped when a highlight collapsed, the two sides overlap, or one side lost most of its original length. Do not drop a pair only because a paraphrase has low word overlap.
 - Uploads are normalized to UTF-8 and `\n` before editing. UTF-8 is tried first, then Windows-1251; UTF-16 is accepted only with a BOM. The download is that normalized text, not the original bytes.
 - The side list shows only `.txt` files in the notes folder, not files in subfolders.

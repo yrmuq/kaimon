@@ -36,6 +36,7 @@ const state = {
 const openBtn = document.querySelector("#open");
 const fileInput = document.querySelector("#file");
 const nextBtn = document.querySelector("#next");
+const backBtn = document.querySelector("#back");
 const saveBtn = document.querySelector("#save");
 const downloadBtn = document.querySelector("#download");
 const semanticInput = document.querySelector("#semantic");
@@ -299,6 +300,7 @@ function refresh(jump) {
   }
   setStatusText();
   nextBtn.disabled = !state.text || alivePairs().length === 0;
+  backBtn.disabled = !state.text || alivePairs().length === 0;
   downloadBtn.disabled = !state.text;
   saveBtn.disabled = !state.name;
   drop.hidden = Boolean(state.text);
@@ -366,6 +368,18 @@ function onEdit(source) {
   refresh(false);
   scheduleDraft();
   scheduleSession();
+}
+
+function showPrev() {
+  for (let i = state.index - 1; i >= 0; i -= 1) {
+    if (shown(state.pairs[i])) {
+      state.index = i;
+      refresh(true);
+      saveSession();
+      return;
+    }
+  }
+  status.textContent = t("37");
 }
 
 function showNext() {
@@ -575,6 +589,7 @@ fileInput.addEventListener("change", () => {
   openFile(file);
 });
 nextBtn.addEventListener("click", showNext);
+backBtn.addEventListener("click", showPrev);
 saveBtn.addEventListener("click", async () => {
   if (!state.name) return;
   clearTimeout(draftTimer);
