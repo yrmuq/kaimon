@@ -63,15 +63,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=kaimon-amd64
           provenance: false
           sbom: false
-      - name: Make the package public
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api --method PATCH \
-            -H "Accept: application/vnd.github+json" \
-            "/user/packages/container/kaimon" \
-            -f visibility=public
       - name: Check the image starts
         run: |
           docker pull ghcr.io/yrmuq/kaimon:dev
