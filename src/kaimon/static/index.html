@@ -34,8 +34,15 @@
     </div>
   </header>
   <p id="status" aria-live="polite"></p>
+  <div id="progress" hidden><span></span></div>
   <p id="error" role="alert" hidden></p>
-  <div class="panes">
+  <div class="workspace">
+    <aside id="files">
+      <p class="files-label" data-i18n="27"></p>
+      <ul id="file-list"></ul>
+      <p id="files-empty" class="hint" data-i18n="28" hidden></p>
+    </aside>
+    <div class="panes">
     <div class="editor" id="left-editor">
       <pre aria-hidden="true"></pre>
       <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
@@ -47,6 +54,7 @@
     <div id="drop">
       <p data-i18n="12"></p>
       <p class="hint" data-i18n="13"></p>
+    </div>
     </div>
   </div>
   <script type="module" src="/static/app.mjs"></script>

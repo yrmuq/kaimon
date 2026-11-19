@@ -24,26 +24,49 @@ def get_model():
         return _model
 
 
-def embed_texts(texts: list[str]) -> np.ndarray:
+def embed_texts(texts: list[str], progress=None) -> np.ndarray:
     clipped = [text[:4000] for text in texts]
     model = get_model()
+    total = len(clipped)
+    rows = []
     with _lock:
         try:
-            raw = list(model.embed(clipped))
+            for start in range(0, total, 32):
+                chunk = clipped[start : start + 32]
+                rows.extend(model.embed(chunk))
+                if progress:
+                    progress(min(start + len(chunk), total), total)
         except ModelError:
             raise
         except Exception as exc:
             raise ModelError(str(exc)) from exc
-    vectors = np.vstack([np.asarray(vec, dtype=np.float32) for vec in raw])
+    if not rows:
+        return np.zeros((0, 1), dtype=np.float32)
+    vectors = np.vstack([np.asarray(vec, dtype=np.float32) for vec in rows])
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
     return vectors / norms
 
 
-def find_pairs(text: str, embed=embed_texts) -> list[dict]:
+def find_pairs(text: str, embed=embed_texts, progress=None) -> list[dict]:
+    def report(step: str, percent: int, **extra) -> None:
+        if progress:
+            progress(step, percent, **extra)
+
+    report("model", 5)
+    if embed is embed_texts:
+        get_model()
     spans = candidate_spans(text)
+    report("split", 12, count=len(spans))
     if len(spans) < 2:
         return []
     snippets = [text[start:end] for start, end in spans]
-    vectors = embed(snippets)
+
+    def on_embed(done: int, total: int) -> None:
+        percent = 15 + round(73 * done / total) if total else 88
+        report("embed", min(88, percent), done=done, total=total)
+
+    vectors = embed(snippets, progress=on_embed)
+    report("select", 94)
     return select_pairs(text, spans, vectors)
+

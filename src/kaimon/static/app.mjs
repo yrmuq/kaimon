@@ -9,6 +9,8 @@ const ERROR_IDS = {
   K006: "105",
   K007: "106",
   K008: "107",
+  K009: "108",
+  K010: "109",
 };
 
 const catalogs = { en: null, ru: null };
@@ -29,8 +31,12 @@ const langSelect = document.querySelector("#lang");
 const themeSelect = document.querySelector("#theme");
 const filename = document.querySelector("#filename");
 const status = document.querySelector("#status");
+const progress = document.querySelector("#progress");
+const progressBar = progress.querySelector("span");
 const error = document.querySelector("#error");
 const drop = document.querySelector("#drop");
+const fileList = document.querySelector("#file-list");
+const filesEmpty = document.querySelector("#files-empty");
 const editors = [
   document.querySelector("#left-editor"),
   document.querySelector("#right-editor"),
@@ -151,7 +157,25 @@ function scrollToOffset(area, offset) {
   area.dispatchEvent(new Event("scroll"));
 }
 
+function hideProgress() {
+  progress.hidden = true;
+  progressBar.style.width = "0";
+}
+
+function showProgress(event) {
+  const percent = Math.max(0, Math.min(100, Number(event.percent) || 0));
+  let detail = t("21");
+  if (event.step === "model") detail = t("22");
+  else if (event.step === "split") detail = t("23", { count: event.count ?? 0 });
+  else if (event.step === "embed") detail = t("24", { done: event.done ?? 0, total: event.total ?? 0 });
+  else if (event.step === "select") detail = t("25");
+  progress.hidden = false;
+  progressBar.style.width = `${percent}%`;
+  status.textContent = t("26", { percent, step: detail });
+}
+
 function setStatusText() {
+  hideProgress();
   if (!state.text) {
     status.textContent = t("18");
     return;
@@ -192,6 +216,10 @@ function loadDocument(name, text, pairs) {
   state.pairs = pairs;
   state.index = pairs.findIndex((pair) => pairUsable(pair, text.length));
   filename.textContent = name;
+  for (const button of fileList.querySelectorAll("button")) {
+    if (button.textContent === name) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
+  }
   for (const editor of editors) {
     editor.area.disabled = false;
     editor.area.value = text;
@@ -235,6 +263,85 @@ function showNext() {
   status.textContent = currentPair() ? t("17") : t("19");
 }
 
+async function readAnalysis(response) {
+  const type = response.headers.get("content-type") || "";
+  if (!response.ok || !type.includes("ndjson")) {
+    const payload = await response.json().catch(() => ({}));
+    setError(payload.error || "K005", payload.message);
+    setStatusText();
+    return;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    let nl = buffer.indexOf("\n");
+    while (nl >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      nl = buffer.indexOf("\n");
+      if (!line) continue;
+      const event = JSON.parse(line);
+      if (event.event === "progress") showProgress(event);
+      else if (event.event === "error") {
+        setError(event.error || "K005", event.message);
+        setStatusText();
+      } else if (event.event === "result") {
+        loadDocument(event.name, event.text, event.pairs);
+      }
+    }
+  }
+}
+
+async function openSaved(name) {
+  clearError();
+  request?.abort();
+  const current = new AbortController();
+  request = current;
+  showProgress({ step: "read", percent: 2 });
+  nextBtn.disabled = true;
+  try {
+    const response = await fetch("/api/open", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+      signal: current.signal,
+    });
+    if (current.signal.aborted) return;
+    await readAnalysis(response);
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    setError("K005");
+    setStatusText();
+  }
+}
+
+async function loadFiles() {
+  const response = await fetch("/api/files");
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setError(payload.error || "K010", payload.message);
+    return;
+  }
+  fileList.replaceChildren();
+  const names = payload.files || [];
+  for (const name of names) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = name;
+    button.title = name;
+    if (name === state.name) button.setAttribute("aria-current", "true");
+    button.addEventListener("click", () => openSaved(name));
+    item.append(button);
+    fileList.append(item);
+  }
+  filesEmpty.hidden = names.length > 0;
+}
+
 async function openFile(file) {
   clearError();
   if (!file) return;
@@ -245,23 +352,18 @@ async function openFile(file) {
   request?.abort();
   const current = new AbortController();
   request = current;
-  status.textContent = t("14");
+  showProgress({ step: "read", percent: 2 });
   nextBtn.disabled = true;
   const body = new FormData();
   body.append("file", file, file.name);
   try {
     const response = await fetch("/api/analyze", { method: "POST", body, signal: current.signal });
-    const payload = await response.json().catch(() => ({}));
     if (current.signal.aborted) return;
-    if (!response.ok) {
-      setError(payload.error || "K005", payload.message);
-      setStatusText();
-      return;
-    }
-    loadDocument(payload.name, payload.text, payload.pairs);
+    await readAnalysis(response);
   } catch (err) {
     if (err.name === "AbortError") return;
     setError("K005");
+    setStatusText();
   }
 }
 
@@ -322,3 +424,4 @@ catalogs.en = parseCatalog(enText);
 catalogs.ru = parseCatalog(ruText);
 applyLanguage();
 refresh(false);
+loadFiles();

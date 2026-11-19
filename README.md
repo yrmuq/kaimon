@@ -23,6 +23,7 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 ## Features
 
 - Open one `.txt` file and edit it in two panels
+- Open a `.txt` file from the mounted notes folder
 - Find repeated passages and Russian paraphrases locally, without an external API
 - Move through the pairs with Next; the mark is only a guide
 - Delete the extra text yourself with Backspace
@@ -38,6 +39,7 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 | Input | Action |
 | --- | --- |
 | Open | Load a `.txt` file into both panels |
+| Notes | Open a `.txt` file from the mounted folder |
 | Download | Save the edited text |
 | Next | Scroll each panel to the next similar place |
 | Backspace | Delete the selection in the panel being edited |
@@ -80,7 +82,7 @@ Flatpak is not available.
 
 ### Docker / Self-Hosted
 
-The compose file is `docker-compose.yml`. It pulls `ghcr.io/yrmuq/kaimon:dev`, which GitHub builds on every push to `dev`. That tag is not the stable `latest` image. The external network `homelab` must already exist.
+The compose file is `docker-compose.yml`. It pulls `ghcr.io/yrmuq/kaimon:dev`, which GitHub builds on every push to `dev`. That tag is not the stable `latest` image.
 
 ```bash
 docker compose pull
@@ -92,9 +94,14 @@ docker compose up -d
 ```
 TZ=Europe/Amsterdam
 KAIMON=8080
+LOCATION=/opt/docker
 ```
 
-The container does not store the text, so there is no data volume. The model is inside the image. Open the page, then download the edited file from it.
+| Container path | Purpose |
+| --- | --- |
+| `/data` | `.txt` notes shown in the side list |
+
+Put `.txt` files in the `kaimon` directory under `LOCATION`. The page lists that folder and does not change the files. The model is inside the image. Download the edited text from the page.
 
 ---
 

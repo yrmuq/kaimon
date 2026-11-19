@@ -1,9 +1,15 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from kaimon.errors import ModelError
 from kaimon.server import app
 
 client = TestClient(app)
+
+
+def _events(response):
+    return [json.loads(line) for line in response.text.splitlines() if line.strip()]
 
 
 def test_health_and_page():
@@ -31,15 +37,21 @@ def test_analyze_errors(monkeypatch):
 def test_analyze_returns_full_text(monkeypatch):
     seen = {}
 
-    def fake(text):
+    def fake(text, progress=None):
         seen["text"] = text
+        if progress:
+            progress("embed", 40, done=1, total=2)
         return [{"left": [0, 4], "right": [5, 9], "score": 0.9, "semantic": 0.9, "lexical": 0.9, "leftLen": 4, "rightLen": 4}]
 
     monkeypatch.setattr("kaimon.server.find_pairs", fake)
     body = "Привет\r\nэто длинная запись.\r\n".encode("cp1251")
     response = client.post("/api/analyze", files={"file": ("notes.txt", body, "text/plain")})
     assert response.status_code == 200
-    payload = response.json()
+    events = _events(response)
+    assert events[0]["step"] == "read"
+    assert any(item["step"] == "embed" for item in events)
+    payload = events[-1]
+    assert payload["event"] == "result"
     assert payload["name"] == "notes.txt"
     assert payload["text"] == "Привет\nэто длинная запись.\n"
     assert seen["text"] == payload["text"]
@@ -47,18 +59,49 @@ def test_analyze_returns_full_text(monkeypatch):
 
 
 def test_model_and_compare_errors(monkeypatch):
-    def broken(text):
+    def broken(text, progress=None):
         raise ModelError("missing")
 
     monkeypatch.setattr("kaimon.server.find_pairs", broken)
     response = client.post("/api/analyze", files={"file": ("a.txt", "привет мир, этой строки хватает для текста.\n".encode(), "text/plain")})
-    assert response.status_code == 500
-    assert response.json()["error"] == "K004"
+    assert response.status_code == 200
+    assert _events(response)[-1]["error"] == "K004"
 
-    def crash(text):
+    def crash(text, progress=None):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("kaimon.server.find_pairs", crash)
     response = client.post("/api/analyze", files={"file": ("a.txt", "привет мир, этой строки хватает для текста.\n".encode(), "text/plain")})
-    assert response.status_code == 500
-    assert response.json()["error"] == "K005"
+    assert response.status_code == 200
+    assert _events(response)[-1]["error"] == "K005"
+
+
+def test_notes_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr("kaimon.server.NOTES", tmp_path)
+    (tmp_path / "beta.txt").write_text("beta", encoding="utf-8")
+    (tmp_path / "Alpha.TXT").write_text("alpha", encoding="utf-8")
+    (tmp_path / "skip.md").write_text("no", encoding="utf-8")
+    (tmp_path / ".hidden.txt").write_text("no", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "inside.txt").write_text("no", encoding="utf-8")
+    assert client.get("/api/files").json()["files"] == ["Alpha.TXT", "beta.txt"]
+    missing = client.post("/api/open", json={"name": "../secret.txt"})
+    assert missing.status_code == 400
+    assert missing.json()["error"] == "K008"
+    absent = client.post("/api/open", json={"name": "gone.txt"})
+    assert absent.status_code == 404
+    assert absent.json()["error"] == "K009"
+
+    def fake(text, progress=None):
+        return []
+
+    monkeypatch.setattr("kaimon.server.find_pairs", fake)
+    opened = client.post("/api/open", json={"name": "beta.txt"})
+    assert _events(opened)[-1]["text"] == "beta"
+    blocked = tmp_path / "not-a-folder"
+    blocked.write_text("x", encoding="utf-8")
+    monkeypatch.setattr("kaimon.server.NOTES", blocked)
+    unreadable = client.get("/api/files")
+    assert unreadable.status_code == 500
+    assert unreadable.json()["error"] == "K010"

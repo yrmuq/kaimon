@@ -87,7 +87,7 @@ jobs:
             docker logs kaimon
             exit 1
           fi
-          python3 -c 'import json; payload=json.load(open("/tmp/kaimon-analyze.json")); assert payload["pairs"]'
+          python3 -c 'import json; events=[json.loads(line) for line in open("/tmp/kaimon-analyze.json") if line.strip()]; assert events[-1]["event"]=="result" and events[-1]["pairs"]; assert any(item.get("step")=="embed" for item in events)'
       - name: Update the dev draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

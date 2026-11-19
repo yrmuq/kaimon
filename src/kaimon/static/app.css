@@ -115,9 +115,78 @@ label {
 
 #status { color: var(--muted); }
 
+#progress {
+  height: 4px;
+  margin: 8px 16px 0;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#progress[hidden] { display: none; }
+
+#progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+
 #error {
   color: var(--danger);
   padding-bottom: 4px;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  margin-top: 8px;
+}
+
+#files {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+
+.files-label {
+  margin: 0;
+  padding: 12px 12px 4px;
+  color: var(--muted);
+  font: 12px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#file-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+}
+
+#file-list button {
+  width: 100%;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#file-list button[aria-current="true"] {
+  background: var(--mark);
+}
+
+#files-empty {
+  margin: 0;
+  padding: 4px 12px 12px;
 }
 
 .panes {
@@ -127,7 +196,6 @@ label {
   display: flex;
   gap: 1px;
   background: var(--line);
-  margin-top: 8px;
 }
 
 .editor {
@@ -206,5 +274,12 @@ textarea:focus-visible {
     justify-items: center;
   }
   .cluster.left, .cluster.right { justify-content: center; flex-wrap: wrap; }
+  .workspace { flex-direction: column; }
+  #files {
+    width: auto;
+    max-height: 28vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
   .panes { flex-direction: column; }
 }
