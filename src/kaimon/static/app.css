@@ -45,9 +45,9 @@ body {
 
 header {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
@@ -62,7 +62,8 @@ header {
   min-width: 0;
 }
 
-.cluster.right { justify-content: flex-end; }
+.cluster.left { flex: 1; min-width: 0; }
+.cluster.right { margin-left: auto; justify-content: flex-end; flex: none; }
 
 #filename {
   overflow: hidden;
@@ -378,8 +379,8 @@ textarea:focus-visible {
 
 @media (max-width: 800px) {
   header {
-    grid-template-columns: 1fr;
-    justify-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .pair-nav {
     position: static;
