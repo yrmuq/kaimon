@@ -60,9 +60,15 @@ const editors = [
   document.querySelector("#left-editor"),
   document.querySelector("#right-editor"),
 ].map((node) => ({
+  root: node,
   pre: node.querySelector("pre"),
   area: node.querySelector("textarea"),
 }));
+const notesToggle = document.querySelector("#notes-toggle");
+const filesResize = document.querySelector("#files-resize");
+const workspace = document.querySelector(".workspace");
+const leftLine = document.querySelector("#left-line");
+const rightLine = document.querySelector("#right-line");
 
 let request = null;
 let syncing = false;
@@ -171,6 +177,9 @@ function applyLanguage() {
   themeSelect.options[0].textContent = t("7");
   themeSelect.options[1].textContent = t("8");
   themeSelect.options[2].textContent = t("9");
+  langSelect.setAttribute("aria-label", t("5"));
+  themeSelect.setAttribute("aria-label", t("6"));
+  notesToggle.setAttribute("aria-label", t("27"));
   refresh(false);
 }
 
@@ -215,6 +224,21 @@ function readThreshold(raw, fallback) {
   return value;
 }
 
+function setNotesOpen(open) {
+  document.body.classList.toggle("notes-hidden", !open);
+  notesToggle.setAttribute("aria-pressed", open ? "true" : "false");
+  storageSet("kaimon-notes-open", open ? "1" : "0");
+}
+
+function setNotesWidth(px) {
+  const room = workspace.clientWidth;
+  let width = Math.round(px);
+  if (room > 400) width = Math.max(120, Math.min(width, room - 280));
+  else width = Math.max(120, width);
+  document.documentElement.style.setProperty("--notes-w", `${width}px`);
+  storageSet("kaimon-notes-w", String(width));
+}
+
 function showThresholds() {
   semanticInput.value = String(state.semantic);
   lexicalInput.value = String(state.lexical);
@@ -245,10 +269,15 @@ function renderBackdrops() {
   }
 }
 
-function scrollToOffset(area, offset) {
-  const line = state.text.slice(0, offset).split("\n").length - 1;
-  area.scrollTop = Math.max(0, line * 24 - area.clientHeight * 0.2);
-  area.dispatchEvent(new Event("scroll"));
+function lineNumber(offset) {
+  return String(state.text.slice(0, offset).split("\n").length);
+}
+
+function scrollToMark(editor) {
+  const mark = editor.pre.querySelector("mark");
+  if (!mark) return;
+  editor.area.scrollTop = Math.max(0, mark.offsetTop - editor.area.clientHeight * 0.2);
+  editor.area.dispatchEvent(new Event("scroll"));
 }
 
 function hideProgress() {
@@ -294,9 +323,11 @@ function setStatusText() {
 function refresh(jump) {
   renderBackdrops();
   const pair = currentPair();
+  leftLine.textContent = pair ? lineNumber(pair.left[0]) : "";
+  rightLine.textContent = pair ? lineNumber(pair.right[0]) : "";
   if (pair && jump) {
-    scrollToOffset(editors[0].area, pair.left[0]);
-    scrollToOffset(editors[1].area, pair.right[0]);
+    scrollToMark(editors[0]);
+    scrollToMark(editors[1]);
   }
   setStatusText();
   nextBtn.disabled = !state.text || alivePairs().length === 0;
@@ -636,6 +667,9 @@ themeSelect.addEventListener("change", () => {
 });
 for (const editor of editors) {
   editor.area.addEventListener("input", () => onEdit(editor.area));
+  editor.area.addEventListener("focus", () => {
+    for (const item of editors) item.root.classList.toggle("active", item === editor);
+  });
   editor.area.addEventListener("scroll", () => {
     editor.pre.scrollTop = editor.area.scrollTop;
     editor.pre.scrollLeft = editor.area.scrollLeft;
@@ -658,6 +692,25 @@ window.addEventListener("pagehide", () => {
     body: JSON.stringify({ name: state.name, text: state.text, pairs: state.pairs }),
     keepalive: true,
   });
+});
+notesToggle.addEventListener("click", () => {
+  setNotesOpen(document.body.classList.contains("notes-hidden"));
+});
+filesResize.addEventListener("pointerdown", (event) => {
+  if (document.body.classList.contains("notes-hidden")) return;
+  event.preventDefault();
+  filesResize.setPointerCapture(event.pointerId);
+  const startX = event.clientX;
+  const startW = document.querySelector("#files").getBoundingClientRect().width;
+  function move(ev) {
+    setNotesWidth(startW + ev.clientX - startX);
+  }
+  function up() {
+    filesResize.removeEventListener("pointermove", move);
+    filesResize.removeEventListener("pointerup", up);
+  }
+  filesResize.addEventListener("pointermove", move);
+  filesResize.addEventListener("pointerup", up);
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (state.theme === "system") applyTheme();
@@ -716,6 +769,9 @@ langSelect.value = state.lang;
 themeSelect.value = state.theme;
 showThresholds();
 applyTheme();
+const savedNotesW = Number(storageGet("kaimon-notes-w"));
+if (Number.isFinite(savedNotesW) && savedNotesW >= 120) setNotesWidth(savedNotesW);
+setNotesOpen(storageGet("kaimon-notes-open") !== "0");
 
 const [enText, ruText] = await Promise.all([
   fetch("/languages/English.ini").then((response) => response.text()),

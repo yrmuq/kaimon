@@ -46,13 +46,15 @@ Kaimon opens one text file and shows two views of it, scrolled to places that re
 | Download | Download the edited text |
 | Meaning | Hide pairs below this semantic similarity |
 | Wording | Hide pairs below this word similarity |
+| Notes button | Hide or show the notes list |
+| Notes edge | Drag to make the list wider or narrower |
 | Back | Scroll each panel to the previous similar place |
 | Next | Scroll each panel to the next similar place |
 | Backspace | Delete the selection in the panel being edited |
 | Language | Switch between English and Russian |
 | Theme | Light, dark, or match the system |
 
-Both panels are the same file. A deletion in one panel changes the other. The mark can be shorter or longer than the text you want to remove. A pair stays visible when at least one score is high enough. Moving a slider does not scan the file again. Reloading the tab keeps the file, the edits, the pair, and the place in the text. A comparison keeps running if the tab reloads.
+Both panels are the same file. Long lines wrap inside each panel. A deletion in one panel changes the other. The mark can be shorter or longer than the text you want to remove. The panel you are typing in shows that mark with a border on all four sides. A pair stays visible when at least one score is high enough. Moving a slider does not scan the file again. Reloading the tab keeps the file, the edits, the pair, and the place in the text. A comparison keeps running if the tab reloads.
 
 </details>
 

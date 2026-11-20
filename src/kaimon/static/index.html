@@ -9,6 +9,7 @@
 <body>
   <header>
     <div class="cluster left">
+      <button type="button" id="notes-toggle" aria-pressed="true"><span></span><span></span><span></span></button>
       <button type="button" id="open" data-i18n="3"></button>
       <input id="file" type="file" accept=".txt,text/plain">
       <label class="slider">
@@ -31,15 +32,13 @@
       <button type="button" id="save" data-i18n="29" disabled></button>
       <button type="button" id="download" data-i18n="4" disabled></button>
       <label>
-        <span data-i18n="5"></span>
-        <select id="lang">
+        <select id="lang" aria-label="Language">
           <option value="en"></option>
           <option value="ru"></option>
         </select>
       </label>
       <label>
-        <span data-i18n="6"></span>
-        <select id="theme">
+        <select id="theme" aria-label="Theme">
           <option value="light"></option>
           <option value="dark"></option>
           <option value="system"></option>
@@ -52,6 +51,7 @@
       <p class="files-label" data-i18n="27"></p>
       <ul id="file-list"></ul>
       <p id="files-empty" class="hint" data-i18n="28" hidden></p>
+      <div id="files-resize"></div>
     </aside>
     <div class="main">
       <p id="status" aria-live="polite"></p>
@@ -61,6 +61,10 @@
       <div class="editor" id="left-editor">
         <pre aria-hidden="true"></pre>
         <textarea spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+      </div>
+      <div id="seam" aria-hidden="true">
+        <span id="left-line"></span>
+        <span id="right-line"></span>
       </div>
       <div class="editor" id="right-editor">
         <pre aria-hidden="true"></pre>
