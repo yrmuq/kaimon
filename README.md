@@ -16,7 +16,7 @@
 
 Kaimon opens one text file and shows two views of it, scrolled to places that repeat or say the same thing in different words, so those notes can be cleaned by hand. The page is a small web application. The file stays one document: nothing is stored as cut-up records.
 
-![Two panels of one Russian text file with similar passages marked](assets/screenshot.png)
+![Two panels of one text file with similar passages marked](assets/screenshot.png)
 
 ---
 
